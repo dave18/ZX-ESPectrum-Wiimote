@@ -152,6 +152,7 @@
 // define ONLY one of these
 // USE_INT_FLASH for internal flash storage
 // USE_SD_CARD for external SD card
+// USE_SD_CARD_ALT for external SD card with faster SDFat 2library (https://github.com/greiman/SdFat)
 ///////////////////////////////////////////////////////////////////////////////
 
 //#define USE_INT_FLASH 1
