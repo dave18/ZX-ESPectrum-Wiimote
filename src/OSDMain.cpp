@@ -456,9 +456,10 @@ bool OSD::changeSnapshot(String filename)
         Serial.printf("%s is Parent Directory\n", filename);
         Serial.printf("%s is current Path\n", currentPath);
         Serial.printf("Last position of a / is %d\n",currentPath.lastIndexOf("/"));
+        Serial.printf("Substring is %s\n",currentPath.substring(0, currentPath.lastIndexOf("/")));        
 #endif
         int i=currentPath.lastIndexOf("/");
-        if (i>0) currentPath.substring(0, currentPath.lastIndexOf("/")-1); else currentPath="";
+        if (i>0) currentPath=currentPath.substring(0, currentPath.lastIndexOf("/")); else currentPath="";
         filename="";
       /*  for (i=currentPath.length()-1;i>=0;i--)
         {
