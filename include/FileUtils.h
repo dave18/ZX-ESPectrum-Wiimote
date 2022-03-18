@@ -38,6 +38,13 @@
 // Headers
 #include <Arduino.h>
 #include <FS.h>
+#include <hardconfig.h>
+
+#ifdef USE_SD_CARD_ALT
+// using external storage (SD card with Arduino SFAT Lib)
+#include <SPI.h>
+#include "SdFat.h"
+#endif
 
 class FileUtils
 {
@@ -46,12 +53,21 @@ public:
     static String         getAllFilesFrom(const String path);
     static void           listAllFiles();
     static void           sanitizeFilename(String filename); // in-place
+
+
+#ifdef USE_SD_CARD_ALT
+    static FsFile IRAM_ATTR safeOpenFileRead(String filename);
+#else
     static File IRAM_ATTR safeOpenFileRead(String filename);
-    static String         getFileEntriesFromDir(String path);
+#endif
+//    static File IRAM_ATTR safeOpenFileRead(String filename);
+    static int          getFileEntriesFromDir(String path,char * filelist);
     static uint16_t       countFileEntriesFromDir(String path);
-    static String         getSortedSnaFileList();
+    static uint16_t       countFileEntriesFromDirQuick(String path);
+    static char*         getSortedSnaFileList(String path);
     static String         getSnaFileList();
 
+    static bool           isDirectory(String filename);
     static bool           hasSNAextension(String filename);
     static bool           hasZ80extension(String filename);
 
@@ -68,40 +84,92 @@ private:
 #define SNA_48K_SIZE 49179
 #define SNA_128K_SIZE1 131103
 #define SNA_128K_SIZE2 147487
+#define SD_SPEED 20000000  //4000000
+
+
+
 
 
 // inline utility functions for uniform access to file/memory
 // and making it easy to to implement SNA/Z80 functions
 
+#ifdef USE_SD_CARD_ALT    
+static inline uint8_t readByteFile(FsFile &f)
+{
+    return f.read();
+}
+#else
 static inline uint8_t readByteFile(File f)
 {
     return f.read();
 }
+#endif
 
+#ifdef USE_SD_CARD_ALT    
+static inline uint16_t readWordFileLE(FsFile &f)
+{
+    uint8_t lo = f.read();
+    uint8_t hi = f.read();
+    return lo | (hi << 8);
+}
+#else
 static inline uint16_t readWordFileLE(File f)
 {
     uint8_t lo = f.read();
     uint8_t hi = f.read();
     return lo | (hi << 8);
 }
+#endif
 
+#ifdef USE_SD_CARD_ALT    
+static inline uint16_t readWordFileBE(FsFile &f)
+{
+    uint8_t hi = f.read();
+    uint8_t lo = f.read();
+    return lo | (hi << 8);
+}
+#else
 static inline uint16_t readWordFileBE(File f)
 {
     uint8_t hi = f.read();
     uint8_t lo = f.read();
     return lo | (hi << 8);
 }
+#endif
 
+#ifdef USE_SD_CARD_ALT
+static inline size_t readBlockFile(FsFile &f, uint8_t* dstBuffer, size_t size)
+{
+    return f.read(dstBuffer, size);
+}
+#else
 static inline size_t readBlockFile(File f, uint8_t* dstBuffer, size_t size)
 {
     return f.read(dstBuffer, size);
 }
+#endif
 
+#ifdef USE_SD_CARD_ALT
+static inline void writeByteFile(uint8_t value, FsFile &f)
+{
+    f.write(value);
+}
+#else
 static inline void writeByteFile(uint8_t value, File f)
 {
     f.write(value);
 }
+#endif
 
+#ifdef USE_SD_CARD_ALT
+static inline void writeWordFileLE(uint16_t value, FsFile &f)
+{
+    uint8_t lo =  value       & 0xFF;
+    uint8_t hi = (value >> 8) & 0xFF;
+    f.write(lo);
+    f.write(hi);
+}
+#else
 static inline void writeWordFileLE(uint16_t value, File f)
 {
     uint8_t lo =  value       & 0xFF;
@@ -109,7 +177,17 @@ static inline void writeWordFileLE(uint16_t value, File f)
     f.write(lo);
     f.write(hi);
 }
+#endif
 
+#ifdef USE_SD_CARD_ALT    
+static inline void writeWordFileBE(uint16_t value, FsFile &f)
+{
+    uint8_t hi = (value >> 8) & 0xFF;
+    uint8_t lo =  value       & 0xFF;
+    f.write(hi);
+    f.write(lo);
+}
+#else
 static inline void writeWordFileBE(uint16_t value, File f)
 {
     uint8_t hi = (value >> 8) & 0xFF;
@@ -117,11 +195,19 @@ static inline void writeWordFileBE(uint16_t value, File f)
     f.write(hi);
     f.write(lo);
 }
+#endif
 
+#ifdef USE_SD_CARD_ALT    
+static inline size_t writeBlockFile(uint8_t* srcBuffer, FsFile &f, size_t size)
+{
+    return f.write(srcBuffer, size);
+}
+#else
 static inline size_t writeBlockFile(uint8_t* srcBuffer, File f, size_t size)
 {
     return f.write(srcBuffer, size);
 }
+#endif
 
 static inline uint8_t readByteMem(uint8_t*& ptr)
 {

@@ -91,8 +91,8 @@
 // - COLOR_14B: 14 bit color (RRRRRGGGGGBBBB), using 14 pins and 2 bytes per pixel
 ///////////////////////////////////////////////////////////////////////////////
 
-#define COLOR_3B
-// #define COLOR_6B
+//#define COLOR_3B
+#define COLOR_6B
 // #define COLOR_14B
 
 // check: only one must be defined
@@ -154,13 +154,27 @@
 // USE_SD_CARD for external SD card
 ///////////////////////////////////////////////////////////////////////////////
 
-#define USE_INT_FLASH 1
+//#define USE_INT_FLASH 1
 //#define USE_SD_CARD 1
+#define USE_SD_CARD_ALT 1
 
 // check: only one must be defined
 #if defined(USE_INT_FLASH) && defined(USE_SD_CARD)
-#error "Only one of (USE_INT_FLASH, USE_SD_CARD) must be defined"
+#error "Only one of (USE_INT_FLASH, USE_SD_CARD, USE_SD_CARD_ALT) must be defined"
 #endif
+// check: only one must be defined
+#if defined(USE_INT_FLASH) && defined(USE_SD_CARD_ALT)
+#error "Only one of (USE_INT_FLASH, USE_SD_CARD, USE_SD_CARD_ALT) must be defined"
+#endif
+// check: only one must be defined
+#if defined(USE_SD_CARD) && defined(USE_SD_CARD_ALT)
+#error "Only one of (USE_INT_FLASH, USE_SD_CARD, USE_SD_CARD_ALT) must be defined"
+#endif
+
+//#define XDEBUG                  //Enable debug serial output
+#define FILE_STRING_MAX 16384   //Size of directory buffer - directory listings will truncate when full
+//#define FILE_STRING_MAX 8192
+//#define FILE_STRING_MAX 1024
 ///////////////////////////////////////////////////////////////////////////////
 
 
@@ -198,7 +212,7 @@
 // also, you should define wiimote button mappings for each game.
 //
 
-#define WIIMOTE_PRESENT
+// #define WIIMOTE_PRESENT
 ///////////////////////////////////////////////////////////////////////////////
 
 

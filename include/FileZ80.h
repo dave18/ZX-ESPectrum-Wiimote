@@ -33,6 +33,12 @@
 #include <Arduino.h>
 #include <FS.h>
 
+#ifdef USE_SD_CARD_ALT
+// using external storage (SD card with Arduino SFAT Lib)
+#include <SPI.h>
+#include "SdFat.h"
+#endif
+
 class FileZ80
 {
 public:
@@ -40,8 +46,13 @@ public:
     // static bool IRAM_ATTR save(String z80_fn);
 
 private:
+#ifdef USE_SD_CARD_ALT
+    static void loadCompressedMemData(FsFile &f, uint16_t dataLen, uint16_t memStart, uint16_t memlen);
+    static void loadCompressedMemPage(FsFile &f, uint16_t dataLen, uint8_t* memPage, uint16_t memlen);
+#else
     static void loadCompressedMemData(File f, uint16_t dataLen, uint16_t memStart, uint16_t memlen);
     static void loadCompressedMemPage(File f, uint16_t dataLen, uint8_t* memPage, uint16_t memlen);
+#endif
 };
 
 #endif

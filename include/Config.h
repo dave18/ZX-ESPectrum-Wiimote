@@ -31,6 +31,7 @@
 #define Config_h
 
 #include <Arduino.h>
+#include "hardconfig.h"
 
 class Config
 {
@@ -49,9 +50,10 @@ public:
     static void IRAM_ATTR save();
 
     // list of snapshot file names
-    static String   sna_file_list;
+    //static String   sna_file_list;
+    static char sna_file_list [FILE_STRING_MAX];
     // list of snapshot display names
-    static String   sna_name_list;
+    static char     sna_name_list [FILE_STRING_MAX];
 
     // load lists of snapshots
     static void loadSnapshotLists();

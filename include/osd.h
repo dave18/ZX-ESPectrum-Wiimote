@@ -66,6 +66,7 @@ public:
 
     // Menu
     static void newMenu(String new_menu);
+    static void newMenu(char * new_menu);
     static void menuRecalc();
     static unsigned short menuRealRowFor(byte virtual_row_num);
     static void menuPrintRow(byte virtual_row_num, byte line_type);
@@ -74,6 +75,7 @@ public:
     static String getArchMenu();
     static String getRomsetMenu(String arch);
     static unsigned short menuRun(String new_menu);
+    static unsigned short menuRun(char * new_menu);
     static void menuScroll(boolean up);
     static void menuAt(short int row, short int col);
     static void menuScrollBar();
@@ -81,10 +83,13 @@ public:
 
     // Rows
     static unsigned short rowCount(String menu);
+    static unsigned short rowCount(char * charmenu);
     static String rowGet(String menu, unsigned short row_number);
+    static String rowGet(char * menu, unsigned short row_number);
 
     // Snapshot (SNA/Z80) Management
-    static void changeSnapshot(String sna_filename);
+    static bool changeSnapshot(String sna_filename);
+
 };
 
 #endif // ESPECTRUM_OSD_H
