@@ -73,6 +73,20 @@ extern Z80_STATE _zxCpu;
 #define THE_FS SD
 #endif
 
+#ifdef USE_SD_CARD_ALT
+// using external storage (SD card with Arduino SFAT Lib)
+#include <SPI.h>
+#include "SdFat.h"
+#endif
+
+#ifndef O_RDONLY
+    #define O_RDONLY 0
+#endif
+
+#ifndef O_WRONLY
+    #define O_WRONLY 1
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 
 static uint16_t mkword(uint8_t lobyte, uint8_t hibyte) {
@@ -87,8 +101,23 @@ bool FileZ80::load(String sna_fn)
         loadKeytableForGame(sna_fn.c_str());
 
     Serial.println("FileZ80::load");
+#ifdef USE_SD_CARD_ALT
+    FsFile f;
+    f = FileUtils::safeOpenFileRead(sna_fn);
+#else
     File f = FileUtils::safeOpenFileRead(sna_fn);
-    uint32_t file_size = f.size();
+#endif
+
+#ifdef XDEBUG
+    if (f)
+        Serial.printf("Opened %s - size is %d bytes\n",sna_fn.c_str(),(uint32_t)f.size());  //95,614 Cabal 128k 1,073,563,616
+    else
+        Serial.printf("Couldn't open %s\n",sna_fn.c_str());  
+#endif
+
+    uint32_t file_size = (uint32_t)f.size();
+
+
 
     uint32_t dataOffset = 0;
 
@@ -104,8 +133,14 @@ bool FileZ80::load(String sna_fn)
     // read first 30 bytes
     for (uint8_t i = 0; i < 30; i++) {
         header[i] = f.read();
+#ifdef XDEBUG
+    Serial.printf("%x, ",header[i]);
+#endif
         dataOffset ++;
     }
+#ifdef XDEBUG
+        Serial.println();
+#endif
 
     // additional vars
     uint8_t b12, b29;
@@ -221,9 +256,19 @@ bool FileZ80::load(String sna_fn)
         // additional header block length
         uint16_t ahblen = mkword(header[30], header[31]);
         if (ahblen == 23)
+        {
             version = 2;
+#ifdef XDEBUG
+        Serial.println("Version 2 file detected");
+#endif
+        }
         else if (ahblen == 54 || ahblen == 55)
+        {
             version = 3;
+#ifdef XDEBUG
+        Serial.println("Version 3 file detected");
+#endif
+        }
         else {
             Serial.printf("Z80.load: unknown version, ahblen = %d\n", ahblen);
             return false;
@@ -232,8 +277,14 @@ bool FileZ80::load(String sna_fn)
         // read additional header block
         for (uint8_t i = 32; i < 32 + ahblen; i++) {
             header[i] = f.read();
+#ifdef XDEBUG
+            Serial.printf("%x, ",header[i]);
+#endif
             dataOffset ++;
         }
+#ifdef XDEBUG
+        Serial.println();
+#endif
 
         // program counter
         RegPC = mkword(header[32], header[33]);
@@ -330,13 +381,18 @@ bool FileZ80::load(String sna_fn)
                 uint8_t hdr0 = f.read(); dataOffset ++;
                 uint8_t hdr1 = f.read(); dataOffset ++;
                 uint8_t hdr2 = f.read(); dataOffset ++;
+#ifdef XDEBUG
+                Serial.printf("Block header %x, %x, %x\n",hdr0,hdr1,hdr2);
+#endif
                 uint16_t compDataLen = mkword(hdr0, hdr1);
 #ifdef LOG_Z80_DETAILS
                 Serial.printf("compressed data length: %d\n", compDataLen);
                 Serial.printf("page: %s\n", pagenames[hdr2]);
 #endif
                 uint8_t* memPage = pages[hdr2];
-
+#ifdef XDEBUG
+                Serial.printf("Loading compressed page - Length %d to Page %d\n",compDataLen,hdr2);
+#endif
                 loadCompressedMemPage(f, compDataLen, memPage, 0x4000);
                 dataOffset += compDataLen;
             }
@@ -374,7 +430,11 @@ bool FileZ80::load(String sna_fn)
     return true;
 }
 
-void FileZ80::loadCompressedMemData(File f, uint16_t dataLen, uint16_t memoff, uint16_t memlen)
+#ifdef USE_SD_CARD_ALT
+    void FileZ80::loadCompressedMemData(FsFile &f, uint16_t dataLen, uint16_t memoff, uint16_t memlen)
+#else
+    void FileZ80::loadCompressedMemData(File f, uint16_t dataLen, uint16_t memoff, uint16_t memlen)
+#endif
 {
     uint16_t dataOff = 0;
     uint8_t ed_cnt = 0;
@@ -415,7 +475,11 @@ void FileZ80::loadCompressedMemData(File f, uint16_t dataLen, uint16_t memoff, u
     #endif
 }
 
-void FileZ80::loadCompressedMemPage(File f, uint16_t dataLen, uint8_t* memPage, uint16_t memlen)
+#ifdef USE_SD_CARD_ALT
+    void FileZ80::loadCompressedMemPage(FsFile &f, uint16_t dataLen, uint8_t* memPage, uint16_t memlen)
+#else
+    void FileZ80::loadCompressedMemPage(File f, uint16_t dataLen, uint8_t* memPage, uint16_t memlen)
+#endif
 {
     uint16_t dataOff = 0;
     uint8_t ed_cnt = 0;

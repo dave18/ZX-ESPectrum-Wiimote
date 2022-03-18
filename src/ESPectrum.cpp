@@ -30,7 +30,7 @@
 #include "PS2Kbd.h"
 #include "Z80_LKF/z80emu.h"
 #include "CPU.h"
-#include "z80_LKF/z80user.h"
+#include "Z80_LKF/z80user.h"
 #include <Arduino.h>
 
 #include "hardpins.h"
@@ -208,6 +208,8 @@ void ESPectrum::setup()
 
     Serial.printf("Free heap after allocating emulated ram: %d\n", ESP.getFreeHeap());
 
+    
+
 #ifdef SPEAKER_PRESENT
     pinMode(SPEAKER_PIN, OUTPUT);
     digitalWrite(SPEAKER_PIN, LOW);
@@ -243,6 +245,8 @@ void ESPectrum::setup()
     if ((String)Config::ram_file != (String)NO_RAM_FILE) {
         OSD::changeSnapshot(Config::ram_file);
     }
+
+    
 
 #ifdef ZX_KEYB_PRESENT
     Serial.println("Configuring ZX keyboard pins...");

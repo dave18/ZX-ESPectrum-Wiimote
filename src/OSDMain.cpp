@@ -62,6 +62,10 @@
 #define LEVEL_WARN 2
 #define LEVEL_ERROR 3
 
+String currentPath="";
+
+
+
 extern Font Font6x8;
 
 // X origin to center an element with pixel_width
@@ -138,7 +142,7 @@ static void quickLoad()
 static void persistSave()
 {
     OSD::osdCenteredMsg(OSD_PSNA_SAVING, LEVEL_INFO);
-    if (!FileSNA::save(DISK_PSNA_FILE)) {
+    if (!FileSNA::save(DISK_PSNA_FILE)) {    
         OSD::osdCenteredMsg(OSD_PSNA_SAVE_ERR, LEVEL_WARN);
         delay(1000);
         return;
@@ -151,6 +155,7 @@ static void persistLoad()
 {
     if (!FileSNA::isPersistAvailable()) {
         OSD::osdCenteredMsg(OSD_PSNA_NOT_AVAIL, LEVEL_INFO);
+        Serial.println("No Persist");
         delay(1000);
         return;
     }
@@ -202,12 +207,17 @@ void OSD::do_OSD() {
         AySound::disable();
 
         // Main menu
-        byte opt = menuRun(MENU_MAIN);
+        byte opt = menuRun((String)MENU_MAIN);
         if (opt == 1) {
+            osdCenteredMsg((String)"Please Wait",LEVEL_INFO);
             // Change RAM
-            unsigned short snanum = menuRun(Config::sna_name_list);
-            if (snanum > 0) {
-                changeSnapshot(rowGet(Config::sna_file_list, snanum));
+            bool flagDirectory=true;
+            while (flagDirectory)
+            {
+                unsigned short snanum = menuRun(Config::sna_name_list);
+                if (snanum > 0) {
+                    flagDirectory=changeSnapshot(rowGet(Config::sna_file_list, snanum));
+                } else flagDirectory=false;
             }
         }
         else if (opt == 2) {
@@ -366,10 +376,26 @@ unsigned short OSD::rowCount(String menu) {
     return count;
 }
 
+// Count NL chars inside a string, useful to count menu rows
+unsigned short OSD::rowCount(char * charmenu) {
+    unsigned short count = 0;
+    for (unsigned short i = 1; i < strlen(charmenu); i++) {
+        if (charmenu[i] == ASCII_NL) {
+            count++;
+        }
+    }
+    return count;
+}
+
 // Get a row text
+//String OSD::rowGet(String menu, unsigned short row) {
 String OSD::rowGet(String menu, unsigned short row) {
     unsigned short count = 0;
     unsigned short last = 0;
+#ifdef XDEBUG
+        Serial.println("Called rowGet (String version)");
+        Serial.printf("Row Entry: %d, Menu length in bytes: %d\n", row,menu.length());
+#endif
     for (unsigned short i = 0; i < menu.length(); i++) {
         if (menu.charAt(i) == ASCII_NL) {
             if (count == row) {
@@ -382,30 +408,133 @@ String OSD::rowGet(String menu, unsigned short row) {
     return "MENU ERROR! (Unknown row?)";
 }
 
+String OSD::rowGet(char * menu, unsigned short row) {
+    unsigned short count = 0;
+    unsigned short last = 0;
+    String stemp;
+#ifdef XDEBUG
+        Serial.println("Called rowGet (char version)");
+        Serial.printf("Row Entry: %d, Menu length in bytes: %d\n", row,strlen(menu));
+#endif
+    for (unsigned short i = 0; i < strlen(menu); i++) {
+        if (menu[i] == ASCII_NL) {
+            if (count == row) {
+#ifdef XDEBUG
+                Serial.printf("About to allocate %d bytes for temp menu storage (heap report %d bytes free)\n",(i-last)+1,ESP.getFreeHeap());
+#endif
+                char * temp=(char*)malloc((i-last)+1);
+                if (temp)
+                {
+                    strncpy(temp,&menu[last], i-last);
+                    temp[i-last]=0;
+                    stemp=(String)temp;
+                    free(temp);
+                } else Serial.println("Memory allocation failed!");
+#ifdef XDEBUG
+                Serial.printf("Returning String %s\n",stemp.c_str());
+#endif                
+                return stemp;
+            }
+            count++;
+            last = i + 1;
+        }
+    }
+    return "MENU ERROR! (Unknown row?)";
+}
+
 #include "FileSNA.h"
 #include "FileZ80.h"
 
-// Change running snapshot
-void OSD::changeSnapshot(String filename)
+// Change running snapshot - Returns True if directory was selected
+bool OSD::changeSnapshot(String filename)
 {
+    bool flagDirectory=false;
+
+    if (filename.compareTo("..")==0)
+    {
+#ifdef XDEBUG
+        Serial.printf("%s is Parent Directory\n", filename);
+        Serial.printf("%s is current Path\n", currentPath);
+        Serial.printf("Last position of a / is %d\n",currentPath.lastIndexOf("/"));
+#endif
+        int i=currentPath.lastIndexOf("/");
+        if (i>0) currentPath.substring(0, currentPath.lastIndexOf("/")-1); else currentPath="";
+        filename="";
+      /*  for (i=currentPath.length()-1;i>=0;i--)
+        {
+            //currentPath.substring(0, currentPath. .lastIndexOf("/"));
+            if (currentPath.charAt(i)=='/') break;
+        }*/
+#ifdef XDEBUG
+        Serial.printf("Last position of a / is %d\n",i);
+        Serial.printf("New directory is %s\n", (String)DISK_SNA_DIR +  currentPath);
+#endif  
+        flagDirectory=true;
+    }
+    if (!flagDirectory)
+    if (FileUtils::isDirectory((String)DISK_SNA_DIR +  currentPath + "/" + filename))
+    {
+#ifdef XDEBUG
+        Serial.printf("%s is a Directory\n", filename);
+#endif
+        currentPath=currentPath+"/"+filename;
+        flagDirectory=true;
+    }
+
+    if (flagDirectory)
+    {
+        KB_INT_STOP;        
+        //Config::sna_file_list = (String)MENU_SNA_TITLE + "\n";
+
+        osdCenteredMsg((String)"Reading Directory",LEVEL_INFO);
+
+        strcpy(Config::sna_file_list,MENU_SNA_TITLE);
+        strcat(Config::sna_file_list,"\n");
+        strcat(Config::sna_file_list,FileUtils::getSortedSnaFileList(DISK_SNA_DIR+currentPath));
+        //Config::sna_file_list.concat(FileUtils::getSortedSnaFileList(DISK_SNA_DIR+currentPath));
+#ifdef XDEBUG        
+        Serial.println(Config::sna_file_list);        
+#endif
+#ifdef XDEBUG        
+        Serial.printf("Obtained file list - free mem: %d\n", ESP.getFreeHeap());
+        Serial.printf("Size of file list : %d\n", strlen(Config::sna_file_list));
+#endif        
+        strcpy(Config::sna_name_list,Config::sna_file_list);
+#ifdef XDEBUG        
+        Serial.printf("Created name list - free mem: %d\n", ESP.getFreeHeap());
+        Serial.printf("Size of name list : %d\n", strlen(Config::sna_name_list));
+#endif
+        /*Config::sna_name_list.replace(".SNA", "");
+        Config::sna_name_list.replace(".sna", "");
+        Config::sna_name_list.replace(".Z80", "");
+        Config::sna_name_list.replace(".z80", "");
+        Config::sna_name_list.replace("_", " ");
+        Config::sna_name_list.replace("-", " ");*/
+        KB_INT_START;
+#ifdef XDEBUG
+        //Serial.printf("Formatted name list - size is %d bytes",Config::sna_name_list.length());
+#endif
+        return true;
+    }
     if (FileUtils::hasSNAextension(filename))
     {
         osdCenteredMsg((String)MSG_LOADING_SNA + ": " + filename, LEVEL_INFO);
         ESPectrum::reset();
         Serial.printf("Loading SNA: %s\n", filename.c_str());
-        FileSNA::load((String)DISK_SNA_DIR + "/" + filename);
+        FileSNA::load((String)DISK_SNA_DIR + currentPath + "/" + filename);
     }
     else if (FileUtils::hasZ80extension(filename))
     {
         osdCenteredMsg((String)MSG_LOADING_Z80 + ": " + filename, LEVEL_INFO);
         ESPectrum::reset();
         Serial.printf("Loading Z80: %s\n", filename.c_str());
-        FileZ80::load((String)DISK_SNA_DIR + "/" + filename);
+        FileZ80::load((String)DISK_SNA_DIR + currentPath + "/" + filename);
     }
     osdCenteredMsg(MSG_SAVE_CONFIG, LEVEL_WARN);
-    Config::ram_file = filename;
+    if (currentPath.length()>0) Config::ram_file = currentPath + "/" + filename; else Config::ram_file = filename;
     Config::save();
 
     if (Config::getArch() == "48K") AySound::reset();
+    return false;
 }
 

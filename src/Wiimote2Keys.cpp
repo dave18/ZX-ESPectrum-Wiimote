@@ -51,6 +51,20 @@
 #define THE_FS SD
 #endif
 
+#ifdef USE_SD_CARD_ALT
+// using external storage (SD card with Arduino SFAT Lib)
+#include <SPI.h>
+#include "SdFat.h"
+#endif
+
+#ifndef O_RDONLY
+    #define O_RDONLY 0
+#endif
+
+#ifndef O_WRONLY
+    #define O_WRONLY 1
+#endif
+
 #include "ESP32Wiimote/ESP32Wiimote.h"
 static ESP32Wiimote wiimote;
 
@@ -208,7 +222,12 @@ void loadKeytableForGame(const char* sna_fn)
     txt_fn[fnlen-1] = 't';
 
     Serial.printf("Opening %s...\n", txt_fn);
+#ifdef USE_SD_CARD_ALT
+    SdFile f;
+    f.open(txt_fn, O_RDONLY);
+#else
     File f = THE_FS.open(txt_fn, FILE_READ);
+#endif
     vTaskDelay(2);
 
     if (NULL == f) {

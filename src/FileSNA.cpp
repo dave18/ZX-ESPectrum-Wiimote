@@ -163,9 +163,22 @@ extern Z80_STATE _zxCpu;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+#ifdef USE_SD_CARD_ALT
+// using external storage (SD card with Arduino SFAT Lib)
+#include <SPI.h>
+#include "SdFat.h"
+#endif
+
+#ifndef O_RDONLY
+    #define O_RDONLY 0
+#endif
+
+#ifndef O_WRONLY
+    #define O_WRONLY 1
+#endif
+
 bool FileSNA::load(String sna_fn)
-{
-    File file;
+{    
     uint16_t retaddr;
     int sna_size;
     ESPectrum::reset();
@@ -176,8 +189,13 @@ bool FileSNA::load(String sna_fn)
 
     if (sna_fn != DISK_PSNA_FILE)
         loadKeytableForGame(sna_fn.c_str());
-
+#ifdef USE_SD_CARD_ALT
+    FsFile file;
     file = FileUtils::safeOpenFileRead(sna_fn);
+#else
+    File file;
+    file = FileUtils::safeOpenFileRead(sna_fn);
+#endif
     sna_size = file.size();
 
     if (sna_size < SNA_48K_SIZE) {
@@ -299,12 +317,24 @@ bool FileSNA::load(String sna_fn)
 bool FileSNA::isPersistAvailable()
 {
     String filename = DISK_PSNA_FILE;
+#ifdef USE_SD_CARD_ALT
+    FsFile root;
+    bool persistExist;
+    root.open("/");
+    persistExist=root.exists(filename.c_str());
+    root.close();
+    return persistExist;
+#else
     return THE_FS.exists(filename.c_str());
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-
+#ifdef USE_SD_CARD_ALT
+static bool IRAM_ATTR writeMemPage(uint8_t page, FsFile &file, bool blockMode)
+#else
 static bool IRAM_ATTR writeMemPage(uint8_t page, File file, bool blockMode)
+#endif
 {
     page = page & 0x07;
     uint8_t* buffer = Mem::ram[page];
@@ -369,9 +399,14 @@ bool FileSNA::save(String sna_file, bool blockMode) {
     KB_INT_STOP;
 
     // open file
+#ifdef USE_SD_CARD_ALT
+    FsFile file;
+    file.open(sna_file.c_str(),O_WRONLY | O_CREAT);
+#else
     File file = THE_FS.open(sna_file, FILE_WRITE);
+#endif
     if (!file) {
-        Serial.printf("FileSNA::save: failed to open %s for writing\n", sna_file.c_str());
+        Serial.printf("FileSNA::save: failed to open %s for writing\n", sna_file.c_str());        
         KB_INT_START;
         return false;
     }

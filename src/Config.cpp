@@ -48,24 +48,51 @@
 static SPIClass customSPI;
 #endif
 
+#ifdef USE_SD_CARD_ALT
+// using external storage (SD card with Arduino SFAT Lib)
+#include <SPI.h>
+#include "SdFat.h"
+#endif
+
+#ifndef O_RDONLY
+    #define O_RDONLY 0
+#endif
+
+#ifndef O_WRONLY
+    #define O_WRONLY 1
+#endif
+
 String   Config::arch = "128K";
 String   Config::ram_file = NO_RAM_FILE;
 String   Config::romSet = "SINCLAIR";
-String   Config::sna_file_list; // list of file names
-String   Config::sna_name_list; // list of names (without ext, '_' -> ' ')
+char   Config::sna_file_list[]; // list of file names
+char   Config::sna_name_list[]; // list of names (without ext, '_' -> ' ')
 bool     Config::slog_on = true;
 
 // Read config from FS
 void Config::load() {
     KB_INT_STOP;
     String line;
-    File f;
+    
 
     // Boot config file
     Serial.printf("Loading config file '%s':\n", DISK_BOOT_FILENAME);
+#ifdef USE_SD_CARD_ALT
+    FsFile f;
     f = FileUtils::safeOpenFileRead(DISK_BOOT_FILENAME);
+#else    
+    File f;
+    f = FileUtils::safeOpenFileRead(DISK_BOOT_FILENAME);
+#endif
+    if (f) {
+#ifdef XDEBUG
+        Serial.printf("Config File is size %d\n",f.size());
+#endif
     for (int i = 0; i < f.size(); i++) {
         char c = (char)f.read();
+#ifdef XDEBUG
+        Serial.printf("%c",c);
+#endif
         if (c == '\n') {
             if (line.compareTo("slog:false") == 0) {
                 slog_on = false;
@@ -92,20 +119,39 @@ void Config::load() {
     }
     f.close();
     Serial.println("Config file loaded OK");
+    } else {
+        Serial.println("Failed to load Config file");
+    }
     KB_INT_START;
 }
 
+/*int myReplace(char * str1,char * str2,char * str3)
+{
+    char * p;
+    p=strpbrk(str1,str2);
+    while (p)
+    {
+        memcpy(p,srt2)
+    }
+}*/
+
 void Config::loadSnapshotLists()
 {
+#ifdef XDEBUG
+    Serial.println("loadSnapshoList()");
+#endif
     KB_INT_STOP;
-    sna_file_list = (String)MENU_SNA_TITLE + "\n" + FileUtils::getSortedSnaFileList();
-    sna_name_list = String(sna_file_list);
-    sna_name_list.replace(".SNA", "");
-    sna_name_list.replace(".sna", "");
-    sna_name_list.replace(".Z80", "");
-    sna_name_list.replace(".z80", "");
-    sna_name_list.replace("_", " ");
-    sna_name_list.replace("-", " ");
+    strcpy(sna_file_list,MENU_SNA_TITLE);
+    strcat(sna_file_list,"\n");
+    strcat(sna_file_list,FileUtils::getSortedSnaFileList(DISK_SNA_DIR));
+    Serial.println(sna_file_list);
+    strcpy(sna_name_list,sna_file_list);
+    //sna_name_list.replace(".SNA", "");
+    //sna_name_list.replace(".sna", "");
+    //sna_name_list.replace(".Z80", "");
+    //sna_name_list.replace(".z80", "");
+    //sna_name_list.replace("_", " ");
+    //sna_name_list.replace("-", " ");
     KB_INT_START;
 }
 
@@ -113,7 +159,14 @@ void Config::loadSnapshotLists()
 void Config::save() {
     KB_INT_STOP;
     Serial.printf("Saving config file '%s':\n", DISK_BOOT_FILENAME);
+#ifdef USE_SD_CARD_ALT
+    FsFile f;
+    f.open(DISK_BOOT_FILENAME, O_WRONLY | O_CREAT);
+#else
     File f = THE_FS.open(DISK_BOOT_FILENAME, FILE_WRITE);
+#endif
+    if (f) 
+    {
     // Architecture
     Serial.printf("  + arch:%s\n", arch.c_str());
     f.printf("arch:%s\n", arch.c_str());
@@ -129,6 +182,7 @@ void Config::save() {
     f.close();
     vTaskDelay(5);
     Serial.println("Config saved OK");
+    } else Serial.println("Failed to save config file");
     KB_INT_START;
 
     // do not reload after saving
@@ -145,5 +199,8 @@ void Config::requestMachine(String newArch, String newRomSet, bool force)
 
     arch = newArch;
     romSet = newRomSet;
+#ifdef XDEBUG
+    Serial.printf("Requesting new machine Arch %s, Romset %s\n",arch,romSet);
+#endif
     FileUtils::loadRom(arch, romSet);
 }

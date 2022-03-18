@@ -58,6 +58,8 @@ static unsigned short begin_row;      // First real displayed row
 static byte focus;                    // Focused virtual row
 static byte last_focus;               // To check for changes
 static unsigned short last_begin_row; // To check for changes
+char * charmenu=NULL;
+static bool char_menu;                // flag to indentify where menu is String or Char based
 
 #define NUM_SPECTRUM_COLORS 16
 
@@ -74,6 +76,31 @@ uint16_t OSD::zxColor(uint8_t color, uint8_t bright) {
 // Set menu and force recalc
 void OSD::newMenu(String new_menu) {
     menu = new_menu;
+    char_menu=false;
+    menuRecalc();
+    menuDraw();
+}
+
+void OSD::newMenu(char * new_menu) {    
+    if (charmenu) free(charmenu);
+#ifdef XDEBUG
+    Serial.println("newMenu (char version)");
+    Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
+#endif
+    //if (charmenu) free(charmenu);
+    //charmenu=(char*)realloc(charmenu,strlen(new_menu));
+    charmenu=(char*)malloc(strlen(new_menu)+1);
+    if (menu) {
+        strcpy(charmenu,new_menu);
+        char_menu=true;
+#ifdef XDEBUG
+    Serial.println(charmenu);    
+    Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
+#endif
+    } else {
+        Serial.println("newMenu: failed to allocate memory");
+        vTaskDelay(50);
+    }
     menuRecalc();
     menuDraw();
 }
@@ -82,19 +109,34 @@ void OSD::menuRecalc() {
     // Columns
     cols = 24;
     byte col_count = 0;
-    for (unsigned short i = 0; i < menu.length(); i++) {
-        if (menu.charAt(i) == ASCII_NL) {
-            if (col_count > cols) {
-                cols = col_count;
+    if (char_menu)
+    {
+        for (unsigned short i = 0; i < strlen(charmenu); i++) {
+            if (charmenu[i] == ASCII_NL) {
+                if (col_count > cols) {
+                    cols = col_count;
+            }   
+                col_count = 0;
             }
-            col_count = 0;
-        }
-        col_count++;
+            col_count++;
+        }   
+        cols = (cols > osdMaxCols() ? osdMaxCols() : cols);
     }
-    cols = (cols > osdMaxCols() ? osdMaxCols() : cols);
-
+    else
+    {
+        for (unsigned short i = 0; i < menu.length(); i++) {
+            if (menu.charAt(i) == ASCII_NL) {
+                if (col_count > cols) {
+                    cols = col_count;
+            }   
+                col_count = 0;
+            }
+            col_count++;
+        }   
+        cols = (cols > osdMaxCols() ? osdMaxCols() : cols);
+    }
     // Rows
-    real_rows = rowCount(menu);
+    if (char_menu) real_rows = rowCount(charmenu); else real_rows = rowCount(menu);
     virtual_rows = (real_rows > MENU_MAX_ROWS ? MENU_MAX_ROWS : real_rows);
     begin_row = last_begin_row = last_focus = focus = 1;
 
@@ -123,7 +165,8 @@ void OSD::menuAt(short int row, short int col) {
 void OSD::menuPrintRow(byte virtual_row_num, byte line_type) {
     VGA& vga = ESPectrum::vga;
     byte margin;
-    String line = rowGet(menu, menuRealRowFor(virtual_row_num));
+    String line;
+    if (char_menu) line = rowGet(charmenu, menuRealRowFor(virtual_row_num)); else line = rowGet(menu, menuRealRowFor(virtual_row_num));
 
     switch (line_type) {
     case IS_TITLE:
@@ -181,17 +224,96 @@ void OSD::menuDraw() {
 }
 
 String OSD::getArchMenu() {
-    String menu = (String)MENU_ARCH + FileUtils::getFileEntriesFromDir(DISK_ROM_DIR);
+    static char archlist[1024];
+    FileUtils::getFileEntriesFromDir(DISK_ROM_DIR,archlist);
+    String menu = (String)MENU_ARCH + (String)archlist;
+#ifdef XDEBUG
+    Serial.println("getArchMenu");
+    Serial.println(menu);
+#endif
     return menu;
 }
 
 String OSD::getRomsetMenu(String arch) {
-    String menu = (String)MENU_ROMSET + FileUtils::getFileEntriesFromDir((String)DISK_ROM_DIR + "/" + arch);
+    static char archlist[1024];
+    FileUtils::getFileEntriesFromDir((String)DISK_ROM_DIR + "/" + arch,archlist);
+    String menu = (String)MENU_ROMSET + (String)archlist;
+#ifdef XDEBUG
+    Serial.println("getRomsetMenu");
+    Serial.println(menu);
+#endif
     return menu;
 }
 
 // Run a new menu
 unsigned short OSD::menuRun(String new_menu) {
+    #ifdef XDEBUG
+        Serial.println("Called menuRun (String version)");
+        Serial.printf("Menu length in bytes: %d\n", new_menu.length());
+#endif
+    newMenu(new_menu);
+    while (1) {
+        updateWiimote2KeysOSD();
+        if (PS2Keyboard::checkAndCleanKey(KEY_CURSOR_UP)) {
+            if (focus == 1 and begin_row > 1) {
+                menuScroll(DOWN);
+            } else if (focus > 1) {
+                focus--;
+                menuPrintRow(focus, IS_FOCUSED);
+                if (focus + 1 < virtual_rows) {
+                    menuPrintRow(focus + 1, IS_NORMAL);
+                }
+            }
+        } else if (PS2Keyboard::checkAndCleanKey(KEY_CURSOR_DOWN)) {
+            if (focus == virtual_rows - 1) {
+                menuScroll(UP);
+            } else if (focus < virtual_rows - 1) {
+                focus++;
+                menuPrintRow(focus, IS_FOCUSED);
+                if (focus - 1 > 0) {
+                    menuPrintRow(focus - 1, IS_NORMAL);
+                }
+            }
+        } else if (PS2Keyboard::checkAndCleanKey(KEY_PAGE_UP)) {
+            if (begin_row > virtual_rows) {
+                focus = 1;
+                begin_row -= virtual_rows;
+            } else {
+                focus = 1;
+                begin_row = 1;
+            }
+            menuRedraw();
+        } else if (PS2Keyboard::checkAndCleanKey(KEY_PAGE_DOWN)) {
+            if (real_rows - begin_row  - virtual_rows > virtual_rows) {
+                focus = 1;
+                begin_row += virtual_rows - 1;
+            } else {
+                focus = virtual_rows - 1;
+                begin_row = real_rows - virtual_rows + 1;
+            }
+            menuRedraw();
+        } else if (PS2Keyboard::checkAndCleanKey(KEY_HOME)) {
+            focus = 1;
+            begin_row = 1;
+            menuRedraw();
+        } else if (PS2Keyboard::checkAndCleanKey(KEY_END)) {
+            focus = virtual_rows - 1;
+            begin_row = real_rows - virtual_rows + 1;
+            menuRedraw();
+        } else if (PS2Keyboard::checkAndCleanKey(KEY_ENTER)) {
+            return menuRealRowFor(focus);
+        } else if (PS2Keyboard::checkAndCleanKey(KEY_ESC) || PS2Keyboard::checkAndCleanKey(KEY_F1)) {
+            return 0;
+        }
+    }
+}
+
+// Run a new menu
+unsigned short OSD::menuRun(char * new_menu) {
+#ifdef XDEBUG
+        Serial.println("Called menuRun (char version)");
+        Serial.printf("Menu length in bytes: %d\n", strlen(new_menu));
+#endif
     newMenu(new_menu);
     while (1) {
         updateWiimote2KeysOSD();
