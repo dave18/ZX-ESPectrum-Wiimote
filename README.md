@@ -80,7 +80,7 @@ NEW: now including my own Spectrum 48K games: [Snake](https://github.com/dcrespo
 
 **(NOTE: this feature has been tested only on a Lilygo TTGo VGA32 board, which has build-in uSD card slot. Pins from hardware.h are from that board, if using a regular ESP32 you must connect the SD card CS, CLK, MISO and MOSI signals to the ESP32 and update pins in hardware.h accordingly)**
 
-If using external micro sd card (USE_SD_CARD #defined in hardconfig.h), you must copy files from the `/data` subdirectory to the root of the sd card (copy the contents of the folder, NOT the folder itself, so boot.cfg is on the root folder).
+If using external micro sd card (either USE_SD_CARD or USE_SD_CARD_ALT #defined in hardconfig.h), you must copy files from the `/data` subdirectory to the root of the sd card (copy the contents of the folder, NOT the folder itself, so boot.cfg is on the root folder).
 
 The SD card should be formatted in FAT16 / FAT32.
 
