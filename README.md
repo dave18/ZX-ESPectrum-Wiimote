@@ -1,5 +1,10 @@
 # ZX-ESPectrum-Wiimote
 
+This is a fork of https://github.com/dcrespo3d/ZX-ESPectrum-Wiimote/tree/lilygo-ttgo-vga32 with the following changes
+
+- Option to use SDFat Version 2 https://github.com/greiman/SdFat for much faster SD Card acccess
+- Ability to navigate sub-folder to allow for larger number of files to be managed on SD Card (Note: due to RAM contraints a maximum directory buffer is defined in hardconfig.h. I have set it to 16k to allow for reasonable sized directories, you could probably make it a bit bigger.  Once the buffer is full the directory read truncates.
+
 **LATEST UPDATES: 128K sound, .Z80 format (48/128), micro SD card, 4:3 aspect ratio.**
 
 An emulation of the ZX-Spectrum computer on an ESP32 chip with VGA output based on bitluni's driver, with PS/2 keyboard support, using a Wiimote as input device, based on bigw00d's driver.
